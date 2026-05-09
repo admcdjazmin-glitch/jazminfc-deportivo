@@ -171,6 +171,8 @@ tr:hover td{background:var(--gray1)}
 .filter-btn{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--gray2);background:var(--white);color:var(--text2);transition:all .15s}
 .filter-btn.active{background:var(--navy);color:var(--white);border-color:var(--navy)}
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.fab-save{position:fixed;bottom:24px;right:24px;z-index:500;background:#1E6FD9;color:white;border:none;border-radius:50px;padding:14px 24px;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(30,111,217,0.5);font-family:'Poppins',sans-serif;display:none}
+.fab-save.visible{display:flex;align-items:center;gap:8px}
 .section-title{font-size:20px;font-weight:700;color:var(--text)}
 /* ADMIN PROFES */
 .profe-card-admin{background:var(--white);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;margin-bottom:12px}
@@ -279,6 +281,8 @@ tr:hover td{background:var(--gray1)}
   </div>
 </div>
 
+<button class="fab-save" id="fabSave" onclick="saveAsistencia()">💾 Guardar asistencia</button>
+
 <!-- MODAL JUGADOR -->
 <div class="modal-overlay" id="modalJugador">
   <div class="modal">
@@ -377,8 +381,14 @@ const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 const PERMISOS={
   admin:{
     verTodas:true,agregarJugador:true,editarJugador:true,
-    inactivarJugador:true,moverJugador:true,
+    inactivarJugador:true,eliminarJugador:true,moverJugador:true,
     verProfes:true,editarProfes:true,
+    verReportes:true,verAsistencia:true
+  },
+  dt:{
+    verTodas:false,agregarJugador:true,editarJugador:true,
+    inactivarJugador:true,eliminarJugador:true,moverJugador:true,
+    verProfes:false,editarProfes:false,
     verReportes:true,verAsistencia:true
   },
   coordinadora:{
@@ -404,7 +414,8 @@ function perm(key){
 const USUARIOS_DEFAULT=[
   // ADMINS
   {id:'caro',nombre:'Caro',cargo:'Administradora',rol:'admin',color:'#C9A84C',anios:[]},
-  {id:'edisson',nombre:'Edisson',cargo:'Director Técnico',rol:'admin',color:'#1E6FD9',anios:[2008,2009,2010,2011]},
+  {id:'edisson_dt',nombre:'Edisson',cargo:'Director Técnico',rol:'dt',color:'#1E6FD9',anios:[2008,2009,2010,2011]},
+  {id:'edisson_admin',nombre:'Edisson',cargo:'Admin / DT',rol:'admin',color:'#0A3D8F',anios:[]},
   // COORDINADORA
   {id:'karen_coord',nombre:'Karen S.',cargo:'Coordinadora Deportiva',rol:'coordinadora',color:'#7F77DD',anios:[]},
   // PROFES
@@ -438,10 +449,10 @@ function anioACategoria(anio){
 
 // ── LOGIN ─────────────────────────────────────────────────
 function initLogin(){
-  const admins=usuarios.filter(u=>u.rol==='admin');
+  const admins=usuarios.filter(u=>u.rol==='admin'||u.rol==='dt');
   const coords=usuarios.filter(u=>u.rol==='coordinadora');
   const profes=usuarios.filter(u=>u.rol==='profe');
-  document.getElementById('adminGrid').innerHTML=admins.map(u=>loginBtnHTML(u,'admin')).join('');
+  document.getElementById('adminGrid').innerHTML=admins.map(u=>loginBtnHTML(u,u.rol==='dt'?'admin':'admin')).join('');
   document.getElementById('coordGrid').innerHTML=coords.map(u=>loginBtnHTML(u,'coord')).join('');
   document.getElementById('profesGrid').innerHTML=profes.map(u=>loginBtnHTML(u,'profe')).join('');
 }
@@ -464,8 +475,8 @@ function login(userId){
   av.textContent=u.nombre.slice(0,2).toUpperCase();
   av.style.background=u.color;
   document.getElementById('sidebarName').textContent=u.nombre;
-  const roleLabel=u.rol==='admin'?'Admin / DT':u.rol==='coordinadora'?'Coordinadora':'Profe';
-  const roleClass=u.rol==='admin'?'role-admin':u.rol==='coordinadora'?'role-coord':'role-profe';
+  const roleLabel=u.rol==='admin'?'Admin / DT':u.rol==='dt'?'Director Técnico':u.rol==='coordinadora'?'Coordinadora':'Profe';
+  const roleClass=u.rol==='admin'?'role-admin':u.rol==='dt'?'role-admin':u.rol==='coordinadora'?'role-coord':'role-profe';
   document.getElementById('sidebarRole').innerHTML=`<span class="${roleClass}">${roleLabel}</span>`;
   document.getElementById('topbarDate').textContent=todayLabel;
   const badgeCls=u.rol==='admin'?'badge-admin':u.rol==='coordinadora'?'badge-coord':'badge-profe';
@@ -516,6 +527,7 @@ async function showScreen(name){
   const nav=document.getElementById('nav-'+name);
   if(nav)nav.classList.add('active');
   document.getElementById('pageTitle').textContent=name==='Profes'?'Gestión de profes':name;
+  document.getElementById('fabSave').classList.toggle('visible', name==='Asistencia');
   if(name==='Dashboard')await loadDashboard();
   else if(name==='Asistencia')await loadAsistencia();
   else if(name==='Jugadores')await initJugadores();
@@ -594,7 +606,6 @@ function renderAsistenciaPage(){
   document.getElementById('asistContent').innerHTML=`
   <div class="section-header">
     <div class="section-title">Asistencia</div>
-    <button class="btn btn-primary btn-sm" onclick="saveAsistencia()">💾 Guardar</button>
   </div>
   <div class="cal-wrap">
     <div class="cal-header">
